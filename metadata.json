@@ -1,0 +1,5 @@
+{
+  "name": "OfferLens",
+  "description": "专注个人面试复盘的 AI 助手，帮助求职者记录面试过程、转录文字，并结合个人简历进行深度的 AI 表现分析与打分。",
+  "requestFramePermissions": ["microphone"]
+}
