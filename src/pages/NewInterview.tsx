@@ -66,10 +66,16 @@ export default function NewInterview() {
                 value={formData.round}
                 onChange={(e) => setFormData({ ...formData, round: e.target.value })}
               >
+                <option value="一面">一面</option>
+                <option value="二面">二面</option>
+                <option value="三面">三面</option>
+                <option value="四面">四面</option>
+                <option value="五面">五面</option>
+                <option value="业务一面">业务一面</option>
+                <option value="业务二面">业务二面</option>
+                <option value="业务三面">业务三面</option>
+                <option value="交叉面">交叉面</option>
                 <option value="HR面">HR面</option>
-                <option value="一面">技术一面</option>
-                <option value="二面">技术二面</option>
-                <option value="三面">技术三面</option>
                 <option value="高管面">高管面</option>
                 <option value="其他">其他</option>
               </select>

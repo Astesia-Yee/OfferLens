@@ -8,6 +8,7 @@ import { generateTranscriptAndReview } from '../services/geminiService';
 
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import AudioPlayer from '../components/AudioPlayer';
 
 export default function InterviewDetail() {
   const { id } = useParams<{ id: string }>();
@@ -147,6 +148,18 @@ export default function InterviewDetail() {
     }
   };
 
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (interview?.audioBlob) {
+      const url = URL.createObjectURL(interview.audioBlob);
+      setAudioUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setAudioUrl(null);
+    }
+  }, [interview?.audioBlob]);
+
   if (!interview) {
     return <div className="p-4 text-center text-gray-500">加载中...</div>;
   }
@@ -220,10 +233,16 @@ export default function InterviewDetail() {
                   value={editForm.round}
                   onChange={(e) => setEditForm({ ...editForm, round: e.target.value })}
                 >
+                  <option value="一面">一面</option>
+                  <option value="二面">二面</option>
+                  <option value="三面">三面</option>
+                  <option value="四面">四面</option>
+                  <option value="五面">五面</option>
+                  <option value="业务一面">业务一面</option>
+                  <option value="业务二面">业务二面</option>
+                  <option value="业务三面">业务三面</option>
+                  <option value="交叉面">交叉面</option>
                   <option value="HR面">HR面</option>
-                  <option value="一面">技术一面</option>
-                  <option value="二面">技术二面</option>
-                  <option value="三面">技术三面</option>
                   <option value="高管面">高管面</option>
                   <option value="其他">其他</option>
                 </select>
@@ -334,33 +353,40 @@ export default function InterviewDetail() {
                 />
               </div>
             ) : (
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
-                <div className="flex items-center flex-1 mr-4">
-                  <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mr-4 shrink-0">
-                    <PlayCircle className="w-6 h-6" />
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mr-3 shrink-0">
+                      <PlayCircle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">已上传面试录音</p>
+                      <p className="text-xs text-gray-500">
+                        {!interview.report ? '点击右上角按钮开始 AI 复盘' : '可以随时重新分析'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">已上传面试录音</p>
-                    <p className="text-xs text-gray-500 mb-2">
-                      {!interview.report ? '点击右上角按钮开始 AI 复盘' : '可以随时重新分析'}
-                    </p>
-                    <audio 
-                      controls 
-                      src={URL.createObjectURL(interview.audioBlob)} 
-                      className="w-full h-8 max-w-md"
-                    />
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 shrink-0 ml-2">
+                    <a 
+                      href={audioUrl || ''}
+                      download={`面试录音-${interview.company}-${interview.position}.webm`}
+                      className="text-sm text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-3 py-1.5 rounded-lg text-center w-full sm:w-auto"
+                    >
+                      下载
+                    </a>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('确定要删除录音吗？')) {
+                          repository.updateInterview(id!, { audioBlob: null, transcript: null, report: null }).then(() => loadInterview(id!));
+                        }
+                      }}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium bg-red-50 px-3 py-1.5 rounded-lg text-center w-full sm:w-auto"
+                    >
+                      删除
+                    </button>
                   </div>
                 </div>
-                <button 
-                  onClick={() => {
-                    if (window.confirm('确定要删除录音吗？')) {
-                      repository.updateInterview(id!, { audioBlob: null, transcript: null, report: null }).then(() => loadInterview(id!));
-                    }
-                  }}
-                  className="text-sm text-red-500 hover:text-red-700 shrink-0 font-medium"
-                >
-                  删除录音
-                </button>
+                {audioUrl && <AudioPlayer src={audioUrl} />}
               </div>
             )}
           </div>

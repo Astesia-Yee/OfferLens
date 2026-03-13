@@ -20,10 +20,7 @@ export default function Settings() {
     setIsTesting(true);
     setTestResult(null);
     try {
-      // Test ASR (SiliconFlow)
-      if (!settings.asrApiKey) throw new Error("请先填写 ASR API Key");
-      
-      // Create a tiny valid wav file for testing
+      // Test ASR
       const sampleRate = 8000;
       const numChannels = 1;
       const bitsPerSample = 16;
@@ -58,9 +55,11 @@ export default function Settings() {
       formData.append('file', audioBlob, 'test.wav');
       formData.append('model', 'FunAudioLLM/SenseVoiceSmall');
 
-      const asrRes = await fetch('https://api.siliconflow.cn/v1/audio/transcriptions', {
+      const asrRes = await fetch('/api/asr', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${settings.asrApiKey}` },
+        headers: {
+          'Authorization': settings.asrApiKey ? `Bearer ${settings.asrApiKey}` : ''
+        },
         body: formData
       });
 
@@ -70,21 +69,21 @@ export default function Settings() {
       }
 
       // Test LLM
-      if (!settings.llmApiKey) throw new Error("请先填写 AI 复盘 API Key");
-      
-      const llmProvider = settings.llmProvider || 'deepseek';
-      const apiUrl = llmProvider === 'kimi' 
-        ? 'https://api.moonshot.cn/v1/chat/completions' 
-        : 'https://api.deepseek.com/chat/completions';
-      const modelName = llmProvider === 'kimi' ? 'moonshot-v1-8k' : 'deepseek-chat';
+      const llmProvider = settings.llmProvider || 'kimi';
+      const modelName = settings.llmModel || (llmProvider === 'kimi' ? 'moonshot-v1-8k' : 
+                        llmProvider === 'deepseek' ? 'deepseek-chat' : 
+                        llmProvider === 'gemini' ? 'gemini-2.5-flash' :
+                        llmProvider === 'claude' ? 'claude-3-5-sonnet-20241022' :
+                        llmProvider === 'qwen' ? 'qwen-plus' : 'ep-xxxxxxxx-xxxx');
 
-      const llmRes = await fetch(apiUrl, {
+      const llmRes = await fetch('/api/llm', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${settings.llmApiKey}`,
+          'Authorization': settings.llmApiKey ? `Bearer ${settings.llmApiKey}` : '',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          provider: llmProvider,
           model: modelName,
           messages: [{ role: 'user', content: 'Hello' }],
           max_tokens: 10
@@ -214,6 +213,9 @@ export default function Settings() {
             </div>
             <h2 className="text-lg font-semibold text-gray-900">API Key 配置</h2>
           </div>
+          <p className="text-sm text-gray-500 mb-4">
+            如果不填写，将默认使用系统提供的免费额度。如果你有自己的 Key，可以在下方填入。
+          </p>
           
           <div className="space-y-5">
             {/* ASR Key */}
@@ -241,31 +243,64 @@ export default function Settings() {
                 </label>
                 <select
                   className="text-sm border border-gray-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
-                  value={settings.llmProvider || 'deepseek'}
-                  onChange={(e) => setSettings({ ...settings, llmProvider: e.target.value as 'deepseek' | 'kimi' })}
+                  value={settings.llmProvider || 'kimi'}
+                  onChange={(e) => {
+                    const provider = e.target.value as any;
+                    const defaultModels: Record<string, string> = {
+                      kimi: 'moonshot-v1-8k',
+                      deepseek: 'deepseek-chat',
+                      gemini: 'gemini-2.5-flash',
+                      claude: 'claude-3-5-sonnet-20241022',
+                      qwen: 'qwen-plus',
+                      doubao: 'ep-xxxxxxxx-xxxx'
+                    };
+                    setSettings({ ...settings, llmProvider: provider, llmModel: defaultModels[provider] });
+                  }}
                 >
-                  <option value="deepseek">DeepSeek (深度求索)</option>
                   <option value="kimi">Kimi (月之暗面)</option>
+                  <option value="deepseek">DeepSeek (深度求索)</option>
+                  <option value="gemini">Gemini (Google)</option>
+                  <option value="claude">Claude (Anthropic)</option>
+                  <option value="qwen">千问 (阿里)</option>
+                  <option value="doubao">豆包 (火山引擎)</option>
                 </select>
               </div>
               
-              {settings.llmProvider === 'kimi' ? (
-                <p className="text-xs text-gray-500 mb-2">
-                  Kimi 擅长超长文本处理，非常适合长篇面试复盘。请前往 <a href="https://platform.moonshot.cn/" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">Moonshot 开放平台</a> 获取 Key。
-                </p>
-              ) : (
-                <p className="text-xs text-gray-500 mb-2">
-                  DeepSeek 逻辑推理能力极强。请前往 <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">DeepSeek 开放平台</a> 充值并获取 Key。
-                </p>
-              )}
-              
-              <input
-                type="password"
-                className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                placeholder={settings.llmProvider === 'kimi' ? "输入 Moonshot 的 sk-... 密钥" : "输入 DeepSeek 官方的 sk-... 密钥"}
-                value={settings.llmApiKey || ''}
-                onChange={(e) => setSettings({ ...settings, llmApiKey: e.target.value })}
-              />
+              <div className="flex gap-3 mb-3">
+                <div className="flex-1">
+                  <input
+                    type="password"
+                    className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    placeholder="输入 API Key (sk-...)"
+                    value={settings.llmApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, llmApiKey: e.target.value })}
+                  />
+                </div>
+                <div className="w-1/3">
+                  <input
+                    type="text"
+                    className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    placeholder="模型名称"
+                    value={settings.llmModel || (
+                      settings.llmProvider === 'deepseek' ? 'deepseek-chat' : 
+                      settings.llmProvider === 'gemini' ? 'gemini-2.5-flash' :
+                      settings.llmProvider === 'claude' ? 'claude-3-5-sonnet-20241022' :
+                      settings.llmProvider === 'qwen' ? 'qwen-plus' :
+                      settings.llmProvider === 'doubao' ? 'ep-xxxxxxxx-xxxx' :
+                      'moonshot-v1-8k'
+                    )}
+                    onChange={(e) => setSettings({ ...settings, llmModel: e.target.value })}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                {(!settings.llmProvider || settings.llmProvider === 'kimi') && 'Kimi 擅长超长文本处理，非常适合长篇面试复盘。'}
+                {settings.llmProvider === 'deepseek' && 'DeepSeek 逻辑推理能力极强，性价比高。'}
+                {settings.llmProvider === 'gemini' && 'Gemini 速度极快，免费额度充足。'}
+                {settings.llmProvider === 'claude' && 'Claude 3.5 Sonnet 逻辑与代码能力顶尖。'}
+                {settings.llmProvider === 'qwen' && '通义千问中文能力优秀。'}
+                {settings.llmProvider === 'doubao' && '豆包模型请在右侧输入框填入你的 Endpoint ID (ep-...)。'}
+              </p>
             </div>
 
             {/* Test Button */}

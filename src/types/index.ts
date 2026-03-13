@@ -18,7 +18,8 @@ export interface AppSettings {
   resumeFileName?: string | null;
   asrApiKey: string;
   llmApiKey: string;
-  llmProvider?: 'deepseek' | 'kimi';
+  llmProvider?: 'kimi' | 'deepseek' | 'gemini' | 'claude' | 'qwen' | 'doubao';
+  llmModel?: string;
 }
 
 export interface DataRepository {

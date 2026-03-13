@@ -15,12 +15,8 @@ export async function generateTranscriptAndReview(
   onProgress?: (status: string) => void
 ): Promise<{ transcript: string; report: string }> {
   const settings = await repository.getSettings();
-  const asrApiKey = settings?.asrApiKey;
-  const llmApiKey = settings?.llmApiKey;
-
-  if (!asrApiKey || !llmApiKey) {
-    throw new Error("请先在设置页面配置 语音转录 和 AI 复盘的 API Key");
-  }
+  const asrApiKey = settings?.asrApiKey || '';
+  const llmApiKey = settings?.llmApiKey || '';
 
   // 1. Parse PDF if exists
   onProgress?.("正在解析简历...");
@@ -43,15 +39,15 @@ export async function generateTranscriptAndReview(
   // 2. ASR (Audio to Text) using SenseVoiceSmall via SiliconFlow
   onProgress?.("正在处理音频...");
   
-  // If audio is larger than 45MB, we chunk it to avoid API limits (50MB)
-  // We use 900 seconds (15 minutes) per chunk which is ~28MB in 16kHz mono WAV
-  const MAX_FILE_SIZE = 45 * 1024 * 1024;
+  // If audio is larger than 4MB, we chunk it to avoid Vercel Serverless limits (4.5MB)
+  // We use 120 seconds (2 minutes) per chunk which is ~3.8MB in 16kHz mono WAV
+  const MAX_FILE_SIZE = 4 * 1024 * 1024;
   let audioChunks: Blob[] = [audioBlob];
   
   if (audioBlob.size > MAX_FILE_SIZE) {
     onProgress?.("音频文件较大，正在进行智能切片压缩...");
     try {
-      audioChunks = await chunkAudio(audioBlob, 900); // 15 mins chunks
+      audioChunks = await chunkAudio(audioBlob, 120); // 2 mins chunks
     } catch (e) {
       console.error("Audio chunking failed", e);
       // Fallback to original blob if chunking fails
@@ -75,10 +71,10 @@ export async function generateTranscriptAndReview(
     formData.append('file', chunk, `audio.${ext}`);
     formData.append('model', 'FunAudioLLM/SenseVoiceSmall');
 
-    const asrRes = await fetch('https://api.siliconflow.cn/v1/audio/transcriptions', {
+    const asrRes = await fetch('/api/asr', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${asrApiKey}`
+        'Authorization': asrApiKey ? `Bearer ${asrApiKey}` : ''
       },
       body: formData
     });
@@ -151,34 +147,28 @@ JSON 的结构必须如下：
 }
   `;
 
-  const llmProvider = settings?.llmProvider || 'deepseek';
-  const apiUrl = llmProvider === 'kimi' 
-    ? 'https://api.moonshot.cn/v1/chat/completions' 
-    : 'https://api.deepseek.com/chat/completions';
+  const llmProvider = settings?.llmProvider || 'kimi';
   
-  // Choose model based on transcript length
-  // 1 character is roughly 1-2 tokens. 
-  // DeepSeek v3 supports 64k tokens.
-  // Kimi supports 8k, 32k, 128k.
-  let modelName = 'deepseek-chat';
-  if (llmProvider === 'kimi') {
+  let modelName = settings?.llmModel || 'moonshot-v1-8k';
+  
+  // Auto-upgrade Kimi model if it's the default and text is long
+  if (llmProvider === 'kimi' && modelName.startsWith('moonshot-v1')) {
     const estimatedTokens = prompt.length * 1.5;
     if (estimatedTokens > 30000) {
       modelName = 'moonshot-v1-128k';
     } else if (estimatedTokens > 6000) {
       modelName = 'moonshot-v1-32k';
-    } else {
-      modelName = 'moonshot-v1-8k';
     }
   }
 
-  const llmRes = await fetch(apiUrl, {
+  const llmRes = await fetch('/api/llm', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${llmApiKey}`,
+      'Authorization': llmApiKey ? `Bearer ${llmApiKey}` : '',
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
+      provider: llmProvider,
       model: modelName,
       messages: [
         { role: 'system', content: '你是一个专业的面试复盘助手，必须严格输出合法的 JSON 格式。' },
