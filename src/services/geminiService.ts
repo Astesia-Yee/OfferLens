@@ -47,7 +47,7 @@ export async function generateTranscriptAndReview(
   if (audioBlob.size > MAX_FILE_SIZE) {
     onProgress?.("音频文件较大，正在进行智能切片压缩...");
     try {
-      audioChunks = await chunkAudio(audioBlob, 120); // 2 mins chunks
+      audioChunks = await chunkAudio(audioBlob, 60); // 60 mins chunks to stay well under 4.5MB Vercel limit
     } catch (e) {
       console.error("Audio chunking failed", e);
       // Fallback to original blob if chunking fails

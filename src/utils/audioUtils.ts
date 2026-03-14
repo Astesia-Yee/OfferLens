@@ -1,4 +1,4 @@
-export async function chunkAudio(file: Blob, maxDurationSec: number = 600): Promise<Blob[]> {
+export async function chunkAudio(file: Blob, maxDurationSec: number = 60): Promise<Blob[]> {
   // 1. Create AudioContext (16kHz is enough for speech recognition and saves space)
   const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
   
@@ -10,7 +10,8 @@ export async function chunkAudio(file: Blob, maxDurationSec: number = 600): Prom
   
   const chunks: Blob[] = [];
   const sampleRate = audioBuffer.sampleRate;
-  const channels = audioBuffer.numberOfChannels;
+  const sourceChannels = audioBuffer.numberOfChannels;
+  const channels = 1; // Force mono to save space and avoid Vercel 4.5MB limit
   const totalSamples = audioBuffer.length;
   const samplesPerChunk = maxDurationSec * sampleRate;
   
@@ -18,12 +19,14 @@ export async function chunkAudio(file: Blob, maxDurationSec: number = 600): Prom
     const chunkSamples = Math.min(samplesPerChunk, totalSamples - offset);
     const chunkBuffer = audioCtx.createBuffer(channels, chunkSamples, sampleRate);
     
-    for (let channel = 0; channel < channels; channel++) {
-      const channelData = audioBuffer.getChannelData(channel);
-      const chunkData = chunkBuffer.getChannelData(channel);
-      for (let i = 0; i < chunkSamples; i++) {
-        chunkData[i] = channelData[offset + i];
+    const chunkData = chunkBuffer.getChannelData(0);
+    
+    for (let i = 0; i < chunkSamples; i++) {
+      let sum = 0;
+      for (let c = 0; c < sourceChannels; c++) {
+        sum += audioBuffer.getChannelData(c)[offset + i];
       }
+      chunkData[i] = sum / sourceChannels;
     }
     
     // Convert chunkBuffer to WAV Blob

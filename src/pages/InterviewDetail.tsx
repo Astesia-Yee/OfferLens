@@ -23,6 +23,8 @@ export default function InterviewDetail() {
   });
 
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const recordingIntervalRef = useRef<number | null>(null);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateStatus, setGenerateStatus] = useState('');
@@ -93,11 +95,19 @@ export default function InterviewDetail() {
           loadInterview(id);
         }
         stream.getTracks().forEach(track => track.stop());
+        if (recordingIntervalRef.current) {
+          window.clearInterval(recordingIntervalRef.current);
+        }
+        setRecordingTime(0);
       };
 
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
+      setRecordingTime(0);
+      recordingIntervalRef.current = window.setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
     } catch (err) {
       console.error("Error accessing microphone:", err);
       alert("无法访问麦克风，请检查权限设置。");
@@ -108,7 +118,16 @@ export default function InterviewDetail() {
     if (mediaRecorder && isRecording) {
       mediaRecorder.stop();
       setIsRecording(false);
+      if (recordingIntervalRef.current) {
+        window.clearInterval(recordingIntervalRef.current);
+      }
     }
+  };
+
+  const formatRecordingTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -334,7 +353,9 @@ export default function InterviewDetail() {
                   }`}
                 >
                   {isRecording ? <Square className="w-6 h-6 mb-2 fill-red-600" /> : <Mic className="w-6 h-6 mb-2" />}
-                  <span className="text-sm font-medium">{isRecording ? '停止录音' : '开始录音'}</span>
+                  <span className="text-sm font-medium">
+                    {isRecording ? `停止录音 (${formatRecordingTime(recordingTime)})` : '开始录音'}
+                  </span>
                 </button>
                 
                 <button 
@@ -375,9 +396,19 @@ export default function InterviewDetail() {
                       下载
                     </a>
                     <button 
-                      onClick={() => {
+                      onClick={async () => {
                         if (window.confirm('确定要删除录音吗？')) {
-                          repository.updateInterview(id!, { audioBlob: null, transcript: null, report: null }).then(() => loadInterview(id!));
+                          try {
+                            await repository.updateInterview(id!, { 
+                              audioBlob: null, 
+                              transcript: null, 
+                              report: null 
+                            });
+                            await loadInterview(id!);
+                          } catch (e) {
+                            console.error("Failed to delete audio:", e);
+                            alert("删除失败，请重试");
+                          }
                         }
                       }}
                       className="text-sm text-red-600 hover:text-red-800 font-medium bg-red-50 px-3 py-1.5 rounded-lg text-center w-full sm:w-auto"

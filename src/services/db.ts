@@ -37,7 +37,17 @@ export class LocalDBService implements DataRepository {
   }
 
   async updateInterview(id: string, data: Partial<Interview>): Promise<void> {
-    await db.interviews.update(id, data);
+    const existing = await db.interviews.get(id);
+    if (existing) {
+      // If we are explicitly setting fields to null, we want to remove them or keep them as null
+      const updated = { ...existing, ...data };
+      if (data.audioBlob === null) delete updated.audioBlob;
+      if (data.transcript === null) delete updated.transcript;
+      if (data.report === null) delete updated.report;
+      if (data.score === null) delete updated.score;
+      
+      await db.interviews.put(updated);
+    }
   }
 
   async deleteInterview(id: string): Promise<void> {
